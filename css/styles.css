@@ -1,10 +1,34 @@
-.graf {
-  background-color: #eaf4f4;
-  border: 1px solid #6b9080;
+#logo {
+  filter: invert(100%)
 }
 
-.titulo {
+#title {
   font-size: 18pt;
   font-weight: bold;
   text-anchor: middle;
+}
+
+#xAxisGroup text, #yAxisGroup text {
+  font-size: 10pt;
+}
+
+#xLegend {
+  font-weight: bold;
+}
+
+#yLegend {
+  font-weight: bold;
+  text-anchor: middle;
+}
+
+#tooltip {
+  position: absolute;
+  max-width: 200px;
+  padding: 5px;
+  background-color: white;
+  border: solid;
+  border-width: 2px;
+  border-radius: 5px;
+  pointer-events: none;
+  opacity: 0;
 }

@@ -47,13 +47,13 @@ const dateMonth = (month, year) => {
 }
 
 // Dibujar gráfica de lineal
-const lineChart = (graf, data, yAccessor, xAccessor, titulo) => {
+const areaChart = (graf, data, yAccessor, xAccessor, metric, xText, yText) => {
   //Marges entre grafica y contenedor
   const margins = {
-    top: 50,
-    right: 20,
-    bottom: 50,
-    left: 80,
+    top: 70,
+    right: 30,
+    bottom: 60,
+    left: 100,
   }
 
   // Dimensiones
@@ -71,6 +71,10 @@ const lineChart = (graf, data, yAccessor, xAccessor, titulo) => {
       .attr("width", anchoTotal)
       .attr("height", altoTotal)
       .attr("class", "graf")
+  } else {
+    svg
+      .attr('width', anchoTotal)
+      .attr('height', altoTotal)
   }
 
   // Fondo de gráfica
@@ -84,7 +88,7 @@ const lineChart = (graf, data, yAccessor, xAccessor, titulo) => {
   }
 
   let background = groupBackground.select('#background')
-  
+
   if (background.empty()) {
     background = groupBackground
       .append("rect")
@@ -92,6 +96,10 @@ const lineChart = (graf, data, yAccessor, xAccessor, titulo) => {
       .attr("height", alto)
       .attr("width", ancho)
       .attr("fill", "white")
+  } else {
+    background
+      .attr("height", alto)
+      .attr("width", ancho)
   }
 
   // Grupo principal
@@ -115,25 +123,36 @@ const lineChart = (graf, data, yAccessor, xAccessor, titulo) => {
     .domain(d3.extent(data, xAccessor))
     .range([0, ancho])
 
-  // Linea
-  const line = g.selectAll('.line').data([data], xAccessor)
+  // Duracion de transiones
+  const durationTransition = 2000
 
+  // Escala de colores para que sean distintos por metrica
+  const color = d3
+    .scaleOrdinal()
+    .domain(d3.selectAll('#metric option').nodes().map(o => o.value))
+    .range(['#ef476f', '#ffd166', '#06d6a0'])
+
+  // Linea
+  const line = g.selectAll('.line').data([data])
+  
   line
     .enter()
     .append("path")
     .attr('class', 'line')
     .merge(line)
     .attr("fill", "none")
-    .attr("stroke", "steelblue")
     .attr("stroke-width", 2)
-    .attr("d", d3.line()
-      .x( (d) => x(xAccessor(d)) )
-      .y(alto))
     .transition()
-    .duration(2000)
-    .attr("d", d3.line()
-      .x( (d) => x(xAccessor(d)) )
-      .y( (d) => y(yAccessor(d)) ))
+    .attr("stroke", color(metric.value))
+    .duration(durationTransition)
+    .attrTween('d', function (data) {
+      let previous = d3.select(this).attr('d')
+      let current = d3.line()
+        .x( (d) => x(xAccessor(d)) )
+        .y( (d) => y(yAccessor(d)) )
+        (data)
+      return d3.interpolatePath(previous, current)
+    })
 
   // Area
   const area = g.selectAll('.area').data([data], xAccessor)
@@ -143,46 +162,96 @@ const lineChart = (graf, data, yAccessor, xAccessor, titulo) => {
     .append('path')
     .attr('class', 'area')
     .merge(area)
-    .attr('fill', 'lightsteelblue')
-    .attr('opacity', '0.3')
-    .attr('d', d3.area()
-      .x( (d) => x(xAccessor(d)) )
-      .y0(alto)
-      .y1(alto))
     .transition()
-    .duration(2000)
-    .attr('d', d3.area()
-      .x( (d) => x(xAccessor(d)) )
-      .y0(alto)
-      .y1( (d) => y(yAccessor(d)) ))
+    .duration(durationTransition)
+    .attr('fill', color(metric.value))
+    .attr('opacity', '0.1')
+    .attrTween('d', function (data) {
+      let previous = d3.select(this).attr('d')
+      let current = d3.area()
+        .x( (d) => x(xAccessor(d)) )
+        .y0( alto )
+        .y1( (d) => y(yAccessor(d)) )
+        (data)
+      let excludeSegment = (a, b) => a.x === b.x && a.x === ancho;
+
+      return d3.interpolatePath(previous, current, excludeSegment)
+    })
+
+  // Puntos con tooltip
+  g
+    .selectAll("circle")
+    .data(data)
+    .join('circle')
+    .on("mouseover", function (event, d) {
+      let tooltip = d3.select('#tooltip')
+
+      tooltip
+        .transition()
+        .duration(200)
+        .style("opacity", 1);
+      
+      tooltip
+        .html('Año: ' + xAccessor(d).getFullYear() +'<br>Valor: ' + new Intl.NumberFormat().format(yAccessor(d).toFixed(0)))
+        .style("left",  (event.pageX) + "px")
+        .style("top", (event.pageY) + "px");
+    })
+    .on("mouseout", function (d) {
+      let tooltip = d3.select('#tooltip')
+
+      tooltip.transition()
+        .duration(200)
+        .style("opacity", 0);
+    })
+    .attr("r", 15)
+    .attr("cx", (d) => x(xAccessor(d)))
+    .attr("cy", (d) => y(yAccessor(d)))
+    .attr("opacity", "0")
 
   // Títulos
   let title = svg.select('#title')
 
   if (title.empty()) {
-    title =  svg.append("text")
+    title = svg.append("text")
       .attr('id', 'title')
-      .attr("x", anchoTotal / 2)
-      .attr("y", 30)
-      .classed("titulo", true)
+      .attr("y", 40)
   }
- 
-  title.text(titulo)
 
-  // Etiquetas de ejes
+  title
+    .text(metric.text)
+    .transition()
+    .duration(durationTransition)
+    .attr("x", margins.left + (ancho / 2))
+
+  // Etiquetas de eje X
   let xAxisGroup = g.select('#xAxisGroup')
 
   if (xAxisGroup.empty()) {
     xAxisGroup = g.append("g")
       .attr('id', 'xAxisGroup')
-      .attr("transform", `translate(0, ${alto})`)
   }
 
   xAxisGroup
+    .attr("transform", `translate(0, ${alto})`)
     .transition()
-    .duration(2000)
+    .duration(durationTransition)
     .call(d3.axisBottom(x).ticks(8))
-  
+
+  let xLegend = svg.select('#xLegend')
+
+  if (xLegend.empty()) {
+    xLegend = svg.append("text")
+      .attr('id', 'xLegend')
+  }
+
+  xLegend
+    .text(xText)
+    .attr('y', altoTotal - 10 )
+    .transition()
+    .duration(durationTransition)
+    .attr('x', margins.left + (ancho / 2))
+
+  // Etiquetas de eje y
   let yAxisGroup = g.select('#yAxisGroup')
 
   if (yAxisGroup.empty()) {
@@ -190,72 +259,88 @@ const lineChart = (graf, data, yAccessor, xAccessor, titulo) => {
       .append('g')
       .attr('id', 'yAxisGroup')
   }
-  
+
   yAxisGroup
     .transition()
     .duration(2000)
     .call(d3.axisLeft(y).ticks(8))
+
+  let yLegend = svg.select('#yLegend')
+
+  if (yLegend.empty()) {
+    yLegend = svg.append("text")
+      .attr('id', 'yLegend')
+      .attr('x', 25)
+  }
+
+  yLegend
+    .text(yText)
+    .transition()
+    .duration(durationTransition)
+    .attr('y', margins.top + (alto / 2))
+    .style('transform-origin', `${25}px ${margins.top + (alto / 2)}px`)
+    .style('transform', 'rotate(-90deg)')
 }
 
-const draw = async (metric) => {
-  // Selecciones
+const draw = async () => {
+  // Opcion seleccionada
+  const metric = {
+    value: d3.select('#metric').property('value'),
+    text: d3.select('#metric option:checked').text()
+  }
+
+  // Definiciones
   const graf = d3.select("#graf")
-  let yAccessor;
-  let xAccessor;
+  let yAccessor = (d) => d['Valor']
+  let xAccessor = (d) => d['Fecha']
+  let data
+  let xtext = "Año"
+  let yText 
 
-  switch(metric.value) {
+  switch (metric.value) {
     case 'PIB':
-        // Cargar informacion PIB 
-        let pib = await d3.json("data/deuda_en_relacion_al_pib.json")
-        pib = pib.Respuesta.Datos.Metricas[1].Datos
-        
-        // Cambiar trimestres a fecha
-        pib.forEach((d) => {
-          d.Fecha = dateQuarter(d['Periodo'], d['Agno'])
-        })
+      // Cargar informacion PIB 
+      let pib = await d3.json("data/deuda_en_relacion_al_pib.json")
+      
+      pib  = pib.Respuesta.Datos.Metricas[1]
+      yText = `${pib.Escala} de ${pib.Unidad.split(" ")[0]}`
+      data = pib.Datos
 
-        // Funciones de acceso
-        yAccessor = (d) => d['Valor']
-        xAccessor = (d) => d['Fecha']
-
-        // Graficar
-        lineChart(graf, pib, yAccessor, xAccessor, metric.text)
+      // Cambiar trimestres a fecha
+      data.forEach((d) => {
+        d.Fecha = dateQuarter(d['Periodo'], d['Agno'])
+      })
       break
     case 'DEU':
-         // Cargar informacion Deuda 
-         let deuda = await d3.json("data/deuda_en_relacion_al_pib.json")
-         deuda = deuda.Respuesta.Datos.Metricas[0].Datos
-         
-         // Cambiar trimestres a fecha
-         deuda.forEach((d) => {
-           d.Fecha = dateMonth(d['Periodo'], d['Agno'])
-         })
- 
-         // Funciones de acceso
-         yAccessor = (d) => d['Valor']
-         xAccessor = (d) => d['Fecha']
- 
-         // Graficar
-         lineChart(graf, deuda, yAccessor, xAccessor, metric.text)
+      // Cargar informacion Deuda 
+      let deuda = await d3.json("data/deuda_en_relacion_al_pib.json")
+
+      deuda  = deuda.Respuesta.Datos.Metricas[0]
+      yText = `${deuda.Escala} de ${deuda.Unidad.split(" ")[0]}`
+      data = deuda.Datos
+
+      // Cambiar trimestres a fecha
+      data.forEach((d) => {
+        d.Fecha = dateMonth(d['Periodo'], d['Agno'])
+      })
       break
     case 'DES':
-         // Cargar informacion PIB 
-         let parados = await d3.json("data/numero_de_parados.json")
-         parados = parados.Respuesta.Datos.Metricas[0].Datos
-         
-         // Cambiar trimestres a fecha
-         parados.forEach((d) => {
-           d.Fecha = dateQuarter(d['Periodo'], d['Agno'])
-         })
- 
-         // Funciones de acceso
-         yAccessor = (d) => d['Valor']
-         xAccessor = (d) => d['Fecha']
- 
-         // Graficar
-         lineChart(graf, parados, yAccessor, xAccessor, metric.text)
+      // Cargar informacion PIB 
+      let parados = await d3.json("data/numero_de_parados.json")
+
+      parados  = parados.Respuesta.Datos.Metricas[0]
+      yText = `${parados.Escala} de ${parados.Unidad.split(" ")[0]}`
+      data = parados.Datos
+
+      // Cambiar trimestres a fecha
+      data.forEach((d) => {
+        d.Fecha = dateQuarter(d['Periodo'], d['Agno'])
+      })
       break
   }
+
+  // Graficar
+  areaChart(graf, data, yAccessor, xAccessor, metric, xtext, yText)
 }
 
 const init = () => {
@@ -283,24 +368,25 @@ const init = () => {
     .append('option')
     .attr('value', (d) => d.value)
     .text((d) => d.text)
-  
+
   metric
     .on('change', (event) => {
       event.preventDefault()
 
-      draw(
-        {     
-          value: event.target.value,
-          text: event.target.options[event.target.options.selectedIndex].label
-        }
-      )
+      draw()
+    })
+
+  // Adaptar grafica al redimensionar navegador
+  let resizeTimer;
+
+  d3.select(window)
+    .on('resize', () => {
+      clearTimeout(resizeTimer)
+      resizeTimer = setTimeout(() => {
+        draw()
+      }, 250)
     })
 }
 
 init()
-draw( 
-  {     
-    value: d3.select('#metric').property('value'),
-    text: d3.select('#metric option:checked').text()
-  }
-)
+draw()
