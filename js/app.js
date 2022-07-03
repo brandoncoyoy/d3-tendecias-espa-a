@@ -130,7 +130,7 @@ const areaChart = (graf, data, yAccessor, xAccessor, metric, xText, yText) => {
   const color = d3
     .scaleOrdinal()
     .domain(d3.selectAll('#metric option').nodes().map(o => o.value))
-    .range(['#ef476f', '#ffd166', '#06d6a0'])
+    .range(['#1982c4', '#FF595E', '#6a4c93'])
 
   // Linea
   const line = g.selectAll('.line').data([data])
